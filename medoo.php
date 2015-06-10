@@ -57,7 +57,7 @@ class medoo
 					$this->database_name = $options;
 				}
 			}
-			elseif (is_array($options))
+			elseif (is_array($options) || is_object($options))
 			{
 				foreach ($options as $option => $value)
 				{
@@ -65,6 +65,7 @@ class medoo
 				}
 			}
 
+			$port = null;
 			if (
 				isset($this->port) &&
 				is_int($this->port * 1)
@@ -74,32 +75,10 @@ class medoo
 			}
 
 			$type = strtolower($this->database_type);
-			$is_port = isset($port);
-
-			if (isset($options['prefix']))
-			{
-				$this->prefix = $options['prefix'];
-			}
+			$is_port = isset($port) && !empty($port);
 
 			switch ($type)
 			{
-				case 'mariadb':
-					$type = 'mysql';
-
-				case 'mysql':
-					if ($this->socket)
-					{
-						$dsn = $type . ':unix_socket=' . $this->socket . ';dbname=' . $this->database_name;
-					}
-					else
-					{
-						$dsn = $type . ':host=' . $this->server . ($is_port ? ';port=' . $port : '') . ';dbname=' . $this->database_name;
-					}
-
-					// Make MySQL using standard quoted identifier
-					$commands[] = 'SET SQL_MODE=ANSI_QUOTES';
-					break;
-
 				case 'pgsql':
 					$dsn = $type . ':host=' . $this->server . ($is_port ? ';port=' . $port : '') . ';dbname=' . $this->database_name;
 					break;
@@ -130,6 +109,23 @@ class medoo
 					$this->username = null;
 					$this->password = null;
 					break;
+
+				case 'mariadb':
+				case 'mysql':
+				default:
+					$type = 'mysql';
+					if ($this->socket)
+					{
+						$dsn = $type . ':unix_socket=' . $this->socket . ';dbname=' . $this->database_name;
+					}
+					else
+					{
+						$dsn = $type . ':host=' . $this->server . ($is_port ? ';port=' . $port : '') . ';dbname=' . $this->database_name;
+					}
+
+					// Make MySQL using standard quoted identifier
+					$commands[] = 'SET SQL_MODE=ANSI_QUOTES';
+					break;
 			}
 
 			if (
@@ -140,16 +136,21 @@ class medoo
 				$commands[] = "SET NAMES '" . $this->charset . "'";
 			}
 
-			$this->pdo = new PDO(
-				$dsn,
-				$this->username,
-				$this->password,
-				$this->option
-			);
-
-			foreach ($commands as $value)
+			if (isset($dsn))
 			{
-				$this->pdo->exec($value);
+				$this->pdo = new PDO(
+					$dsn,
+					$this->username,
+					$this->password,
+					$this->option
+				);
+				foreach ($commands as $value)
+				{
+					$this->pdo->exec($value);
+				}
+			}
+			else {
+				throw new Exception('DSN not defined!!!');
 			}
 		}
 		catch (PDOException $e) {
@@ -954,4 +955,3 @@ class medoo
 		return $output;
 	}
 }
-?>
